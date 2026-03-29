@@ -55,6 +55,8 @@ type CallStreamResponse struct {
 func frontCall(httpClient *resty.Client, inBaseUrl string, apiKey string, model string, messages []Message, stream bool, tools []Tool) (CallResponse, *resty.Response, error) {
 	// TODO: 合并同侧assistant和user
 
+	// TODO: 修改string全部变成TextBlock
+
 	// TODO: 报错解析
 
 	// 防止 https://example/

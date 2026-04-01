@@ -93,16 +93,6 @@ func findComma(s string) int {
 	return -1
 }
 
-// findSemicolon 查找字符串中的分号位置
-func findSemicolon(s string) int {
-	for i, c := range s {
-		if c == ';' {
-			return i
-		}
-	}
-	return -1
-}
-
 // 图片消息
 type ImageBlock struct {
 	Type          string                 `json:"type"`

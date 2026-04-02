@@ -90,3 +90,85 @@ func TestCallStreamWithTools(t *testing.T) {
 	}
 	fmt.Println(message)
 }
+
+func TestCallWithImageUrl(t *testing.T) {
+	client := newTestClient()
+	message, err := client.Call("claude-sonnet-4-6", []Message{
+		{
+			Role:    ClaudeMessageRoleUser,
+			Content: SingleStringMessage("这个图片是啥"),
+		}, {
+			Role:    ClaudeMessageRoleUser,
+			Content: NewImageBlockFromUrl("https://twfood.cc/img/code/A1/_.jpg"),
+		}}, []Tool{})
+	if err != nil {
+		t.Error(err.Error())
+	}
+	fmt.Println(message)
+}
+
+func TestCallWithImageBase64(t *testing.T) {
+	client := newTestClient()
+	//从文件读取base64编码后的图片数据
+	base64data, err := os.ReadFile("./test_data/base64.txt")
+	if err != nil {
+		t.Error(err.Error())
+	}
+	base64dataStr := string(base64data)
+	message, err := client.Call("claude-sonnet-4-6", []Message{
+		{
+			Role:    ClaudeMessageRoleUser,
+			Content: SingleStringMessage("这个图片是啥"),
+		}, {
+			Role:    ClaudeMessageRoleUser,
+			Content: NewImageBlockFromBase64("image/jpeg", base64dataStr),
+		}}, []Tool{})
+	if err != nil {
+		t.Error(err.Error())
+	}
+	fmt.Println(message)
+}
+
+func TestCallStreamIamgeBase64(t *testing.T) {
+	client := newTestClient()
+	//从文件读取base64编码后的图片数据
+	base64data, err := os.ReadFile("test_data/base64.txt")
+	if err != nil {
+		t.Error(err.Error())
+	}
+	base64dataStr := string(base64data)
+	resMessages, err := client.CallStream("claude-sonnet-4-6", []Message{
+		{
+			Role:    ClaudeMessageRoleUser,
+			Content: SingleStringMessage("这个图片是啥，尽可能说长一点"),
+		}, {
+			Role:    ClaudeMessageRoleUser,
+			Content: NewImageBlockFromBase64("image/jpeg", base64dataStr),
+		}}, []Tool{}, func(m Message) bool {
+		fmt.Println(m.Content)
+		return true
+	})
+	if err != nil {
+		t.Error(err.Error())
+	}
+	fmt.Println("总消息", resMessages)
+}
+
+func TestCallStreamIamgeUrl(t *testing.T) {
+	client := newTestClient()
+	resMessages, err := client.CallStream("claude-sonnet-4-6", []Message{
+		{
+			Role:    ClaudeMessageRoleUser,
+			Content: SingleStringMessage("这个图片是啥，尽可能说长一点"),
+		}, {
+			Role:    ClaudeMessageRoleUser,
+			Content: NewImageBlockFromUrl("https://twfood.cc/img/code/A1/_.jpg")},
+	}, []Tool{}, func(m Message) bool {
+		fmt.Println(m.Content)
+		return true
+	})
+	if err != nil {
+		t.Error(err.Error())
+	}
+	fmt.Println("总消息", resMessages)
+}

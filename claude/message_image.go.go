@@ -24,12 +24,6 @@ func NewImageBlockFromBase64(mediaType string, base64Data string) ImageBlock {
 	}
 }
 
-// 图片消息
-type ImageBlock struct {
-	Type   string `json:"type"`
-	Source any    `json:"source"`
-}
-
 // 图片消息Base64
 type ImageBlockSourceBase64 struct {
 	Type      string `json:"type"`

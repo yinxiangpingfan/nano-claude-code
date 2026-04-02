@@ -37,3 +37,9 @@ type ThinkingBlock struct {
 	Thinking  string `json:"thinking"`
 	Signature string `json:"signature"`
 }
+
+// 图片消息
+type ImageBlock struct {
+	Type   string `json:"type"`
+	Source any    `json:"source"`
+}

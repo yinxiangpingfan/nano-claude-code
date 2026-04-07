@@ -221,8 +221,11 @@ type CallRequest struct {
 	Model    string    `json:"model"`
 	Messages []Message `json:"messages"`
 	Stream   bool      `json:"stream"`
+    System   string    `json:"system,omitempty"`
 }
 ````
+
+> ❗注意此处的 System 字段，是 claude 协议区别于 openai 协议的一个重点，这一字段在 openai 协议中是在 input 字段中设置 role 为 system 来实现的。
 
 接下来我们就可以填充我们的 Body 部分了。
 
@@ -307,7 +310,7 @@ for _, item := range res.Content {
 然后我们加上数据接收处理和错误处理，就得到了这样的代码：
 
 ````go
-func (c *ClaudeClient) Call(model string, messages []Message) ([]Message, error) {
+func (c *ClaudeClient) Call(model string, system string, messages []Message) ([]Message, error) {
     baseurl := c.baseUrl
     if c.baseUrl[len(c.baseUrl)-1] != '/' {
         baseurl += "/"
@@ -319,6 +322,7 @@ func (c *ClaudeClient) Call(model string, messages []Message) ([]Message, error)
             Stream: false,
             Model: model,
             Message: message,
+            System: system,
         }).
         Post(baseurl + "v1/message")
     if err != nil {
@@ -363,7 +367,7 @@ func (c *ClaudeClient) Call(model string, messages []Message) ([]Message, error)
 // claude/call.go
 
 // 返回三个参数分别是直接响应，流式响应，错误
-func frontCall(httpClient *resty.Client, inBaseUrl string, apiKey string, model string, messages []Message, stream bool) (CallResponse, *resty.Response, error) {
+func frontCall(httpClient *resty.Client, inBaseUrl string, apiKey string, model string, messages []Message, stream bool, system string) (CallResponse, *resty.Response, error) {
 	// 防止 https://example/
 	baseurl := inBaseUrl
 	if inBaseUrl[len(inBaseUrl)-1] != '/' {
@@ -378,6 +382,7 @@ func frontCall(httpClient *resty.Client, inBaseUrl string, apiKey string, model 
 			Stream:   stream,
 			Model:    model,
 			Messages: messages,
+            System: system,
 		})
 
     // 如果是流式响应，就设置不处理返回，
@@ -392,8 +397,8 @@ func frontCall(httpClient *resty.Client, inBaseUrl string, apiKey string, model 
 	return res, httpRes, err
 }
 
-func (c *ClaudeClient) Call(model string, messages []Message) ([]Message, error) {
-	res, _, err := frontCall(c.httpClient, c.baseUrl, c.apiKey, model, messages, false)
+func (c *ClaudeClient) Call(model string, system string, messages []Message) ([]Message, error) {
+	res, _, err := frontCall(c.httpClient, c.baseUrl, c.apiKey, model, messages, false, system)
 	if err != nil {
 		return []Message{}, err
 	}
@@ -434,8 +439,8 @@ func (c *ClaudeClient) Call(model string, messages []Message) ([]Message, error)
 
 ````go
 // dealFun 调用时输入，通过这种方式将信息同步传到函数外使用。
-func (c *ClaudeClient) CallStream(model string, messages []Message, dealFunc func(Message) bool) error {
-	_, originHttpRes, err := frontCall(c.httpClient, c.baseUrl, c.apiKey, model, messages, true)
+func (c *ClaudeClient) CallStream(model string, system string, messages []Message, dealFunc func(Message) bool) error {
+	_, originHttpRes, err := frontCall(c.httpClient, c.baseUrl, c.apiKey, model, messages, true, system)
 	if err != nil {
 		return err
 	}
@@ -568,7 +573,7 @@ case "content_block_delta":
 
 ````go
 // claude/call.go
-func (c *ClaudeClient) CallStream(model string, messages []Message, dealFunc func(Message) bool) ([]Message, error) {
+func (c *ClaudeClient) CallStream(model string, system string, messages []Message, dealFunc func(Message) bool) ([]Message, error) {
 	_, originHttpRes, err := frontCall(c.httpClient, c.baseUrl, c.apiKey, model, messages, true, []Tool{})
 	if err != nil {
 		return []Message{}, err
@@ -746,7 +751,7 @@ type CallStreamResponse struct {
 		PartialJson string `json:"partial_json"`
 	} `json:"delta"`
 }
-func frontCall(httpClient *resty.Client, inBaseUrl string, apiKey string, model string, messages []Message, stream bool, tools []Tool) (CallResponse, *resty.Response, error) {
+func frontCall(httpClient *resty.Client, inBaseUrl string, apiKey string, model string, messages []Message, stream bool, tools []Tool, system string) (CallResponse, *resty.Response, error) {
     // ❗ 注意上面的参数传入了 tools
     // ...
 
@@ -780,6 +785,7 @@ func frontCall(httpClient *resty.Client, inBaseUrl string, apiKey string, model 
 		Stream:   stream,
 		Model:    model,
 		Messages: messages,
+        System: system,
 	}
 
 	if len(tools) != 0 {
@@ -788,7 +794,7 @@ func frontCall(httpClient *resty.Client, inBaseUrl string, apiKey string, model 
     
     // ...
 }
-func (c *ClaudeClient) Call(model string, messages []Message, tools []Tool) ([]Message, error) {
+func (c *ClaudeClient) Call(model string, system string, messages []Message, tools []Tool) ([]Message, error) {
 // ❗ 注意上面的参数传入了 tools，在 CallStream 中也要进行相应的修改，
 // ...
     switch messageType {
@@ -807,7 +813,7 @@ func (c *ClaudeClient) Call(model string, messages []Message, tools []Tool) ([]M
     // ...
 // ...
 }
-func (c *ClaudeClient) CallStream(model string, messages []Message, tools []Tool, dealFunc func(Message) bool) ([]Message, error) {
+func (c *ClaudeClient) CallStream(model string, system string, messages []Message, tools []Tool, dealFunc func(Message) bool) ([]Message, error) {
 	// ...
     switch dataDetail.Type {
     // ...
@@ -873,14 +879,14 @@ func (c *ClaudeClient) CallStream(model string, messages []Message, tools []Tool
 函数 `CallTools` 我们的设想是向模型发送请求，然后模型会返回相应的Content Block，这些Block在处理过后 `CallTools` 会根据其中的内容调用相应的 Tool。发送请求我们可以使用刚刚补充封装的 `Call` 来实现。此外，注意到，我们收到的tooluse请求未必只有一次，他可能会依次调用多次或多个 tool，所以我们需要在一个 `for` 循环中不断地调用 `Call` ，当不需要使用 Tools 时，我们再停止循环。这样，一个基本的框架就有了。
 
 ````go
-func (c *ClaudeClient) CallTools(model string, messages []Message, tools []Tool) ([]Message, error) {
+func (c *ClaudeClient) CallTools(model string, system string, messages []Message, tools []Tool) ([]Message, error) {
 	var err error = nil
     // 新的消息
     realMessage := []Message{}
     // 新的单次返回的新消息
 	resMessages := []Message{}
 	for {
-		resMessages, err = c.Call(model, messages, tools)
+		resMessages, err = c.Call(model, system, messages, tools)
 		if err != nil {
 			return []Message{}, err
 		}
@@ -938,12 +944,12 @@ switch item.Content.(type) {
 
 ````go
 // claude/call_tool.go
-func (c *ClaudeClient) CallTools(model string, messages []Message, tools []Tool) ([]Message, error) {
+func (c *ClaudeClient) CallTools(model string, system string, messages []Message, tools []Tool) ([]Message, error) {
 	var err error = nil
     realMessage := []Message{}
 	resMessages := []Message{}
 	for {
-		resMessages, err = c.Call(model, messages, tools)
+		resMessages, err = c.Call(model, system, messages, tools)
 		if err != nil {
 			return []Message{}, err
 		}
@@ -1027,10 +1033,10 @@ func toolCall(tools []Tool, messages []Message, resMessages []Message) (bool, []
 ````go
 // claude/call_tool.go
 // 原先的 CallTools 与该函数基本相同，只需要将 CallStream 换为 Call，调整相关参数即可。
-func (c *ClaudeClient) CallStreamTools(model string, messages []Message, tools []Tool, dealFunc func(Message) bool) ([]Message, error) {
+func (c *ClaudeClient) CallStreamTools(model string, system string, messages []Message, tools []Tool, dealFunc func(Message) bool) ([]Message, error) {
 	realResMessages := []Message{}
 	for {
-		resMessages, err := c.CallStream(model, messages, tools, dealFunc)
+		resMessages, err := c.CallStream(model, system, messages, tools, dealFunc)
 		messages = append(messages, resMessages...)
 		realResMessages = append(realResMessages, resMessages...)
 		if err != nil {

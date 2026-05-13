@@ -1,6 +1,7 @@
 package config
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -76,13 +77,27 @@ func newConfigFile(configDir string) error {
 	}
 
 	//构建文本内容
-	configContent := fmt.Sprintf(`{
-    "llm": {
-        "baseurl": "%s",
-        "apikey": "%s",
-        "model": "%s"
-    }
-}`, baseURL, apiKey, model)
+	type Config struct {
+		LLM struct {
+			BaseURL string `json:"baseurl"`
+			APIKey  string `json:"apikey"`
+			Model   string `json:"model"`
+		} `json:"llm"`
+	}
+	configContent, err := json.MarshalIndent(Config{
+		LLM: struct {
+			BaseURL string `json:"baseurl"`
+			APIKey  string `json:"apikey"`
+			Model   string `json:"model"`
+		}{
+			BaseURL: baseURL,
+			APIKey:  apiKey,
+			Model:   model,
+		},
+	}, "", "  ")
+	if err != nil {
+		return customErrors.ConfigFileWriteError
+	}
 
 	// 创建配置目录
 	if err := os.MkdirAll(configDir, 0755); err != nil {
